@@ -3,6 +3,7 @@ import { promisify } from 'node:util'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { CommandResult } from '@deepseek-ai/dsh-commands'
 import type { JobRegistry } from '@deepseek-ai/dsh-jobs'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
@@ -224,10 +225,19 @@ function handoffWorkflowRequest(agent: Agent, request: string, grants: WorkflowH
   return { kind: 'success', text: 'Workflow request handed to the current agent.' }
 }
 
+function sessionEvents(agent: Agent | undefined): readonly SessionEvent[] {
+  if (agent?.session === undefined) return []
+  if (typeof agent.session.snapshotEvents === 'function') return agent.session.snapshotEvents()
+  const fallback = agent.session as unknown as { readonly log?: readonly SessionEvent[]; readonly events?: readonly SessionEvent[] }
+  if (Array.isArray(fallback.log)) return fallback.log
+  if (Array.isArray(fallback.events)) return fallback.events
+  return []
+}
+
 function hasCurrentWorkflowHandoff(agent: Agent, grants: WorkflowHandoffGrants): boolean {
   const expectedMessageId = grants.get(agent)
   if (expectedMessageId === undefined) return false
-  const events = agent.session.events ?? []
+  const events = sessionEvents(agent)
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index]!
     if (event.type === 'turn/start' || event.type === 'turn/end') return false

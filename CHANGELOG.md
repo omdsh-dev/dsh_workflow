@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Safely access session events via `snapshotEvents()`, `log`, and `events` properties so child agents and handoff checks do not crash with `TypeError: agent.session.events is not iterable` on DSH Session instances.
+
 ---
 
 ## [0.1.2] - 2026-08-13

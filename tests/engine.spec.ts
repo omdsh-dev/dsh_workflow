@@ -622,4 +622,33 @@ describe('dynamic workflow engine', () => {
     expect(cancel).toHaveBeenCalledOnce()
     expect(stopped.engine.stop(active.runId)).toBe(false)
   })
+
+  it('reads session events via snapshotEvents when session.events is not present', async () => {
+    const events: unknown[] = [
+      { type: 'tool/call', data: { callId: 'c1', name: 'read', arguments: '{"path":"note.txt"}' } },
+      { type: 'tool/result', data: { message: { content: [{ type: 'tool-result', toolCallId: 'c1', content: [{ type: 'text', text: 'note content' }] }] } } },
+      { type: 'assistant/message', data: { usage: { inputTokens: 10, outputTokens: 20 }, message: { content: [{ type: 'text', text: 'parsed result' }] } } },
+      { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } },
+    ]
+    const localAgent = {
+      session: {
+        snapshotEvents: vi.fn(() => events),
+      },
+      steer: vi.fn(), cancel: vi.fn(),
+    }
+    const starts = vi.fn(async () => ({
+      id: 'child-snapshot',
+      localAgent,
+      result: Promise.resolve({ output: [{ type: 'text' as const, text: 'parsed result' }], stopReason: 'completed' as const }),
+      dispose: vi.fn(async () => {}),
+    }))
+    const fake: FakeSubagents = {
+      starts,
+      service: { getProvider: (name: string) => ({ name, capabilities: { outputSchema: true, depthLimit: true, toolFilter: true, persona: true }, inheritsParentContext: false }), start: starts } as unknown as SubagentRuntime,
+    }
+    const fx = await fixture({ fake, source: `async function run(wf, args) { return await wf.runAgent({ name: 'snapshot-agent', prompt: 'test' }); }` })
+    const result = await (await fx.engine.start({ module: fx.module, source: 'inline', parent: fx.parent })).done
+    expect(result).toMatchObject({ status: 'completed', cost: { tokenUsage: 30 } })
+    expect(localAgent.session.snapshotEvents).toHaveBeenCalled()
+  })
 })

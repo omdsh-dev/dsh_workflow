@@ -6,7 +6,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import type { Session, SessionEventMap } from '@deepseek-ai/dsh-session'
+import type { Session, SessionEvent, SessionEventMap } from '@deepseek-ai/dsh-session'
 import type { SubagentRun, SubagentRuntime, SubagentStartRequest } from '@deepseek-ai/dsh-subagent'
 import { WorkflowRunId } from '@deepseek-ai/dsh-workflow'
 import type { ToolWorkflowRunStartData } from '@deepseek-ai/dsh-tool-workflow/types'
@@ -111,13 +111,22 @@ function textOf(run: Awaited<SubagentRun['result']>): string {
   return run.output.filter((block): block is Extract<typeof block, { type: 'text' }> => block.type === 'text').map(block => block.text).join('\n')
 }
 
+function sessionEvents(agent: Agent | undefined): readonly SessionEvent[] {
+  if (agent?.session === undefined) return []
+  if (typeof agent.session.snapshotEvents === 'function') return agent.session.snapshotEvents()
+  const fallback = agent.session as unknown as { readonly log?: readonly SessionEvent[]; readonly events?: readonly SessionEvent[] }
+  if (Array.isArray(fallback.log)) return fallback.log
+  if (Array.isArray(fallback.events)) return fallback.events
+  return []
+}
+
 function usageOf(agent: Agent | undefined): WorkflowTaskUsage | undefined {
   if (agent === undefined) return undefined
   let inputTokens = 0
   let outputTokens = 0
   let cacheReadTokens = 0
   let observed = false
-  for (const event of agent.session.events) {
+  for (const event of sessionEvents(agent)) {
     if (event.type !== 'assistant/message' || event.data.usage === undefined) continue
     observed = true
     inputTokens += event.data.usage.inputTokens
@@ -199,14 +208,15 @@ function stringLeaves(value: unknown): string[] {
 function observedToolEvidence(agent: Agent | undefined): { readonly readPaths: readonly string[]; readonly mutationToolCalls: readonly string[] } {
   if (agent === undefined) return { readPaths: [], mutationToolCalls: [] }
   const successful = new Set<string>()
-  for (const event of agent.session.events) {
+  const events = sessionEvents(agent)
+  for (const event of events) {
     if (event.type !== 'tool/result' || event.data.error !== undefined) continue
     for (const block of event.data.message.content) if (block.type === 'tool-result' && block.isError !== true) successful.add(String(block.toolCallId))
   }
   const readPaths: string[] = []
   const mutationToolCalls: string[] = []
   const mutationNames = new Set(['write', 'edit', 'str_replace_editor', 'bash', 'pwsh', 'terminal_create', 'terminal_write', 'cordis_mount', 'cordis_unmount'])
-  for (const event of agent.session.events) {
+  for (const event of events) {
     if (event.type !== 'tool/call' || !successful.has(String(event.data.callId))) continue
     if (mutationNames.has(event.data.name)) mutationToolCalls.push(event.data.name)
     if (!['read', 'read_image', 'grep', 'glob'].includes(event.data.name)) continue
@@ -225,9 +235,9 @@ function pathObserved(required: string, observed: readonly string[], cwd: string
 
 function latestAssistantText(agent: Agent | undefined, fallback: string): string {
   if (agent === undefined) return fallback
-  for (const event of [...agent.session.events].reverse()) {
+  for (const event of [...sessionEvents(agent)].reverse()) {
     if (event.type !== 'assistant/message') continue
-    const text = event.data.message?.content?.filter(block => block.type === 'text').map(block => block.text).join('\n') ?? ''
+    const text = event.data.message?.content?.filter((block: { type: string; text?: string }): block is { type: 'text'; text: string } => block.type === 'text').map(block => block.text).join('\n') ?? ''
     if (text.length > 0) return text
   }
   return fallback
@@ -235,7 +245,7 @@ function latestAssistantText(agent: Agent | undefined, fallback: string): string
 
 function childRecordedCompleted(agent: Agent | undefined): boolean {
   if (agent === undefined) return false
-  const end = [...agent.session.events].reverse().find(event => event.type === 'turn/end')
+  const end = [...sessionEvents(agent)].reverse().find(event => event.type === 'turn/end')
   return end?.type === 'turn/end' && end.data.reason.kind === 'completed'
 }
 
