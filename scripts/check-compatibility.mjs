@@ -15,4 +15,15 @@ if (packageJson.version !== compatibility.version) {
   throw new Error(`DSH version mismatch: expected ${compatibility.version}, got ${packageJson.version}`)
 }
 
+const plugin = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+for (const [name, version] of Object.entries(plugin.devDependencies)) {
+  if (!name.startsWith('@deepseek-ai/dsh-')) continue
+  if (version !== compatibility.version) {
+    throw new Error(`DSH development dependency mismatch: ${name} is ${version}, expected ${compatibility.version}`)
+  }
+  if (plugin.peerDependencies[name] !== undefined && plugin.peerDependencies[name] !== `^${compatibility.version}`) {
+    throw new Error(`DSH peer dependency mismatch: ${name} does not match the compatibility pin`)
+  }
+}
+
 process.stdout.write(`DSH compatibility pin verified: ${compatibility.branch}@${actual.slice(0, 12)}\n`)

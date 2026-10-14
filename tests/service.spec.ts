@@ -1,3 +1,5 @@
+import { activationRuntime } from './dsh-fixture.js'
+import { startWorkflowAgent } from '../src/dsh.js'
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -17,12 +19,12 @@ function config(root: string): ResolvedWorkflowConfig {
     defaultProvider: 'spawn', synthesisProvider: 'spawn',
     modelTiers: { fast: { subagentProvider: 'spawn', maxTokens: 10 }, balanced: { subagentProvider: 'spawn', maxTokens: 20 }, deep: { subagentProvider: 'spawn', maxTokens: 30 } },
     readOnlyToolFilter: { deny: ['write'] }, approvalMode: 'never', availableTools: [], availableMcp: [], availableSkills: [],
-    maxRetainedRuns: 20, pluginVersion: '0.1.0', dshVersion: '0.1.0-rc.5',
+    maxRetainedRuns: 20, pluginVersion: '0.1.0', dshVersion: '0.2.1-alpha.2',
   }
 }
 
 function agent(cwd: string): Agent {
-  return { session: { id: 'parent', header: { cwd }, events: [], append: vi.fn() } } as unknown as Agent
+  return { id: 'parent', ctx: new Context(), session: { id: 'parent', header: { cwd }, snapshotEvents: () => [], append: vi.fn() } } as unknown as Agent
 }
 
 function authoredPayload() {
@@ -48,7 +50,7 @@ function subagents() {
   })
   return {
     start,
-    value: { getProvider: (name: string) => name === 'spawn' ? { name, capabilities: { outputSchema: true, depthLimit: true, toolFilter: true, persona: true }, inheritsParentContext: false } : undefined, start } as unknown as SubagentRuntime,
+    value: { getProvider: (name: string) => name === 'spawn' ? { name, capabilities: { outputSchema: true, depthLimit: true, toolFilter: true, persona: true }, inheritsParentContext: false } : undefined, ...activationRuntime(start) } as unknown as SubagentRuntime,
   }
 }
 
@@ -140,8 +142,9 @@ describe('dynamic workflow service', () => {
     const capturingJobs = { start: vi.fn((input: NonNullable<typeof jobSpec>) => { jobSpec = input; return 'background-id' }) }
     const withJobs = new DynamicWorkflowService(new Context(), { config: config(fx.root), subagents: fx.fake.value, jobs: capturingJobs as never })
     expect(withJobs.attachBackgroundJob(fx.agent, completedRun('stopped'))).toBe('background-id')
+    expect(capturingJobs.start).toHaveBeenCalledWith(expect.objectContaining({ owner: 'parent' }))
     const stoppedControl = jobSpec!.run()
-    expect(await stoppedControl.done).toMatchObject({ status: 'killed' })
+    expect(await stoppedControl.done).toMatchObject({ status: 'killed', result: expect.stringContaining('run-stopped') })
     stoppedControl.cancel('cancel again')
     withJobs.attachBackgroundJob(fx.agent, completedRun('failed'))
     expect(await jobSpec!.run().done).toMatchObject({ status: 'failed' })
@@ -149,7 +152,7 @@ describe('dynamic workflow service', () => {
     const minimal = new DynamicWorkflowService(new Context(), { config: config(fx.root), subagents: fx.fake.value })
     const verification = { preflight: vi.fn(async () => []), verify: vi.fn(async () => []) }
     const isolation = { name: 'test', prepare: vi.fn(async () => ({ cwd: fx.root, parent: fx.agent, dispose: vi.fn(async () => {}) })) }
-    const dispatch = { start: vi.fn(async ({ provider, request, subagents: runtime }) => await runtime.start(provider, request)) }
+    const dispatch = { start: vi.fn(async ({ provider, request, subagents: runtime }) => await startWorkflowAgent(runtime, provider, request)) }
     const removeVerification = minimal.registerVerificationAdapter(verification)
     expect(() => minimal.registerVerificationAdapter(verification)).toThrow(/already registered/u)
     removeVerification()

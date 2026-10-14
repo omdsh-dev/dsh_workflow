@@ -6,8 +6,8 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="License MIT" src="https://img.shields.io/badge/License-MIT-blue.svg"></a>
-  <img alt="DSH 0.1.0-rc.5" src="https://img.shields.io/badge/DSH-0.1.0--rc.5-8257D0.svg">
-  <img alt="Tests 179" src="https://img.shields.io/badge/tests-179%20passing-brightgreen.svg">
+  <img alt="DSH 0.2.1-alpha.2" src="https://img.shields.io/badge/DSH-0.2.1--alpha.2-8257D0.svg">
+  <img alt="Tests 183" src="https://img.shields.io/badge/tests-183%20passing-brightgreen.svg">
   <img alt="KodaX workflow parity" src="https://img.shields.io/badge/workflow-KodaX%20parity-0A84FF.svg">
 </p>
 
@@ -53,7 +53,7 @@ flowchart LR
 
 ## 快速开始
 
-要求：Node.js `>=22.19`，以及与 [`compatibility.json`](compatibility.json) 一致的 DSH 快照。
+要求：Node.js `>=22.19`，以及与 [`compatibility.json`](compatibility.json) 一致的 DSH `0.2.1-alpha.2` 快照。插件 `0.1.5` 面向这一发布系列。
 
 ```sh
 # 构建产物已提交，git 源安装不需要在用户侧编译
@@ -61,6 +61,13 @@ dsh plugin --profile web add "github:dsh-external/dsh_workflow#main"
 
 # 验证 bundle 已进入 profile 合成树
 dsh --profile web --dump-config
+```
+
+本地 checkout 可直接打包安装：
+
+```sh
+pnpm pack
+dsh plugin --profile web add ./dsh-external-workflow-0.1.5.tgz
 ```
 
 预期配置中出现：
@@ -203,27 +210,29 @@ workflow 启动和 `run_workflow` 默认立即返回 `{ runId, status, jobId? }`
 - token budget 在子 Agent 发布前预留，本地 Agent 有 usage 时按 Session 实际值核算。
 - read-path、成功 mutation tool + Git workspace 指纹变化、每个 required changed path 的前后内容指纹、final-text 与 bounded same-actor repair 已内建；部署可以用带稳定 `cacheIdentity` 的 `registerVerificationAdapter()` 叠加非 Git 或更强的 workspace 证据。worktree 通过 `registerIsolationAdapter()` 接入，未注册时明确失败。
 - catalog 保存/替换/改名/删除使用规范化根目录、逐段 junction/symlink 拒绝与原子独占发布；并发同名保存不会互相覆盖。
-- DSH one-shot seam 没有原生 existing-agent target / effort 控制；部署可在首次运行前注册 `registerDispatchAdapter()` 完整承接这两个字段，否则 fail loud。
+- existing-agent target 需要部署在首次运行前注册 `registerDispatchAdapter()`；每个任务的 `effort` 会通过新版 DSH 的原生 Agent 参数传递给支持该能力的 provider，已注册的 dispatch adapter 也可承接 effort 路由。
 
 更多细节见 [安全模型](docs/SECURITY.md)和[架构说明](docs/ARCHITECTURE.md)。
 
 ## 开发与验证
 
-仓库旁需有兼容的官方 DeepSeek Harness checkout，默认路径为 `../deepseek-harness`；也可把 `DSH_SNAPSHOT_DIR` 设置为它的绝对路径。
+仓库旁需有兼容的官方 DeepSeek Harness checkout，默认路径为 `../deepseek-harness`；也可把 `DSH_SNAPSHOT_DIR` 设置为它的绝对路径。先在该 checkout 中执行 `pnpm install --frozen-lockfile`。测试直接使用同版发布包；兼容性检查加载 checkout 当前的客户端和 Loader 源码，避免陈旧构建产物掩盖接口变化。
 
 ```sh
 pnpm install
-pnpm check           # 快照 pin + 真实 DSH 投影 + 179 tests + typecheck + build
+pnpm check           # 快照 pin + 当前 DSH 投影 + 183 tests + typecheck + build + Loader 加载/卸载
 pnpm test:coverage   # 语句/分支/函数/行全局阈值均为 80%
 pnpm pack
 ```
 
 兼容基线、commit 和验证时间记录在 [`compatibility.json`](compatibility.json)。发布前必须重新 fetch DSH 默认分支并更新此文件。
 
+生产构建会检查依赖的类型声明。测试编译器仅跳过第三方声明检查，因为 DSH `0.2.1-alpha.2` 发布包的 projection registry 泛型依赖未导出的私有 host-state 类型扩展；插件自身源码和测试仍接受类型检查。
+
 ## 已知限制
 
 - trusted-local `.ts` 使用 Node 22 原生 erasable-syntax TypeScript，并遵循 Node module cache（修改后重启 DSH）；需要 enum 等 transform-only 语法或热重载时请发布为 `.mjs/.js`。
-- 当前 DSH 通用 subagent seam 不直接支持 existing-agent target、per-agent effort 和 worktree；相应请求需要部署注册 dispatch/isolation adapter，未注册时 fail loud。
+- existing-agent target 和 worktree 需要部署注册 dispatch/isolation adapter，未注册时 fail loud。每个任务的 `effort` 使用 DSH 原生 reasoning effort；provider 不支持 Agent 参数时会在启动前失败。
 - 内建 verification 能证明实际 read/mutation tool evidence、Git workspace 变化、每个 required path 的任务前后指纹与文本后置条件；非 Git 工作区或需要外部权威证据的策略由 verification adapter 补充。
 - 仅生成型 capsule run 能保存不可变 script snapshot；纯函数 trusted-package/local run 不能从 run id 再保存。
 - capsule v1 与 KodaX capsule 不做 wire compatibility；外部 capsule 不会被误执行。

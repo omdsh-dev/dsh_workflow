@@ -1,6 +1,13 @@
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { SubagentRun, SubagentRuntime, SubagentStartRequest } from '@deepseek-ai/dsh-subagent'
+import type { SubagentRuntime, SubagentStartRequest } from '@deepseek-ai/dsh-subagent'
 import type { ObjectJsonSchema, ToolRestriction } from '@deepseek-ai/dsh-tools'
+import type { WorkflowAgentRun } from './dsh.js'
+
+declare module '@deepseek-ai/dsh-llm/message' {
+  interface MessageSourceMap {
+    'dsh-external-workflow': { readonly kind: 'dsh-external-workflow'; readonly plugin: '@dsh-external/workflow'; readonly form: 'relay' }
+  }
+}
 
 export type JsonPrimitive = string | number | boolean | null
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }
@@ -399,7 +406,7 @@ export interface WorkflowRun {
 }
 
 export interface ModelTierRoute {
-  /** DSH subagent transport/provider name passed to ctx.subagents.start(). */
+  /** DSH subagent transport/provider name passed to ctx.subagents.startActivation(). */
   readonly subagentProvider: string
   /** Optional DSH LLM provider route passed through AgentOptions. */
   readonly provider?: string
@@ -419,7 +426,7 @@ export interface WorktreeIsolationAdapter {
   prepare(input: { readonly runId: string; readonly taskId: string; readonly cwd: string; readonly parent: Agent }): Promise<{ readonly cwd: string; readonly parent: Agent; dispose(): Promise<void> }>
 }
 
-/** Deployment seam for KodaX target-agent dispatch and provider-specific effort controls. */
+/** Deployment seam for existing-agent dispatch and optional provider-specific effort controls. */
 export interface WorkflowDispatchAdapter {
   start(input: {
     readonly target?: WorkflowSpawnAgentInput['target']
@@ -427,7 +434,7 @@ export interface WorkflowDispatchAdapter {
     readonly provider: string
     readonly request: SubagentStartRequest
     readonly subagents: SubagentRuntime
-  }): Promise<SubagentRun | WorkflowDispatchResult>
+  }): Promise<WorkflowAgentRun | WorkflowDispatchResult>
 }
 
 /** Optional deployment telemetry for target/effort transports that DSH cannot infer locally. */
@@ -446,7 +453,7 @@ export interface WorkflowDispatchTelemetry {
 }
 
 export interface WorkflowDispatchResult {
-  readonly run: SubagentRun
+  readonly run: WorkflowAgentRun
   readonly telemetry?: WorkflowDispatchTelemetry | Promise<WorkflowDispatchTelemetry>
 }
 

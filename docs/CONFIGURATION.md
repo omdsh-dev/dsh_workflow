@@ -87,7 +87,7 @@ ctx.dynamicWorkflows.registerDispatchAdapter({
 
 Adapters are single registrations because isolation and verification are policy authorities. Registration after an engine has started is rejected to prevent different runs in one project from receiving different semantics.
 
-Dispatch adapters may return a bare `SubagentRun` or `{ run, telemetry }`. The latter is the authority for final provider/model/effort, fallback and remote usage facts; the plugin never fabricates unknown remote token counts.
+Dispatch adapters may return a `WorkflowAgentRun` or `{ run, telemetry }`. Use exported `startWorkflowAgent(subagents, provider, request)` when delegating to DSH so managed activation cancellation and local evidence are retained. The latter form is the authority for final provider/model/effort, fallback and remote usage facts; the plugin never fabricates unknown remote token counts. Native per-task reasoning effort does not require an adapter when the provider supports Agent options.
 
 ## Budget semantics
 

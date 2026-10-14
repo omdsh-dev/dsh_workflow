@@ -21,11 +21,18 @@ The native DSH `workflow` tool remains the best fit for a single foreground fan-
 
 ## Install
 
-Requires Node.js `>=22.19` and the DSH revision pinned in [`compatibility.json`](compatibility.json).
+Requires Node.js `>=22.19` and DSH `0.2.1-alpha.2` at the revision pinned in [`compatibility.json`](compatibility.json). Plugin `0.1.5` targets this release train.
 
 ```sh
 dsh plugin --profile web add "github:dsh-external/dsh_workflow#main"
 dsh --profile web --dump-config
+```
+
+For a local checkout, build an installable bundle and pass its path to DSH:
+
+```sh
+pnpm pack
+dsh plugin --profile web add ./dsh-external-workflow-0.1.5.tgz
 ```
 
 Restart the profile, then try:
@@ -66,7 +73,7 @@ Read-only execution dynamically intersects the parent Agent's visible catalog wi
 
 ## Development
 
-Keep the compatible official DeepSeek Harness checkout at `../deepseek-harness` or set `DSH_SNAPSHOT_DIR` to its absolute path.
+Keep the compatible official DeepSeek Harness checkout at `../deepseek-harness` or set `DSH_SNAPSHOT_DIR` to its absolute path. Install that checkout's dependencies with `pnpm install --frozen-lockfile`. Tests use the matching published packages; compatibility checks load the checkout's current client and Loader source so stale build outputs cannot mask interface changes.
 
 ```sh
 pnpm install
@@ -75,12 +82,12 @@ pnpm test:coverage
 pnpm pack
 ```
 
-The suite currently contains 179 tests and enforces 80% global statement, branch, function, and line coverage thresholds.
+The suite currently contains 183 tests and enforces 80% global statement, branch, function, and line coverage thresholds. `pnpm check` also verifies the built plugin's load/unload through the current DSH Loader. Production builds check dependency declarations; the test compiler skips dependency declaration checks because the published `0.2.1-alpha.2` projection registry omits a private host-state augmentation required by its generic types.
 
 ## Known limitations
 
 - Trusted-local `.ts` uses Node 22's native erasable-syntax TypeScript support and Node's module cache (restart DSH after edits); publish transform-only syntax or hot-reloaded modules as `.mjs/.js`.
-- The current DSH one-shot subagent seam has no native existing-agent target, per-agent effort, or generic worktree option. Deployments register dispatch/isolation adapters; absent adapters fail loudly.
+- Existing-agent targets and worktree isolation require deployment dispatch/isolation adapters. Per-task `effort` uses native DSH reasoning effort on providers supporting Agent options; a registered dispatch adapter may override effort routing.
 - Built-in verification covers observed tool/read evidence, Git workspace mutation, per-required-path before/after fingerprints, and result postconditions; non-Git or external-authority policies register a verification adapter.
 - Only generated capsule runs carry immutable source snapshots that can be saved/rerun from history.
 - KodaX capsules are not treated as wire-compatible with `dsh.workflow` v1.

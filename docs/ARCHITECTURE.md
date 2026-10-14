@@ -2,7 +2,7 @@
 
 ## Position in DSH
 
-The plugin adds `ctx.dynamicWorkflows` above existing DSH seams. It does not modify the agent loop and does not replace `ctx.workflows`.
+The plugin adds `ctx.dynamicWorkflows` above existing DSH seams. It does not modify the agent loop and does not replace `ctx.workflowEngine`.
 
 ```mermaid
 flowchart TD
@@ -31,11 +31,12 @@ flowchart TD
 - `store.ts`: run snapshots, append-only events, capsule snapshots, cache, artifacts, retention and identity.
 - `service.ts`: per-project engine/store ownership and user/model lifecycle operations.
 - `index.ts`: Cordis config, three tools, command and system-prompt integration.
+- `dsh.ts`: caller-delivered managed activations, cancellation after publication, retained local session evidence, and continuation-managed child messaging/repair.
 
 ## Important invariants
 
 1. A capability-generated script cannot obtain a host object; every crossing is detached JSON.
-2. A task handle is returned only after `ctx.subagents.start()` publishes the child.
+2. A task handle is returned only after `ctx.subagents.startActivation()` publishes the child.
 3. Every published native agent-start edge has exactly one native agent-end edge.
 4. Every published child produces an explicit completed/completed-unverified/failed/stopped AgentResult; run-control failures still propagate.
 5. Pause blocks tasks that are not yet published, including tasks already queued on the semaphore.
@@ -48,4 +49,4 @@ flowchart TD
 
 ## Why a separate engine
 
-DSH's native worker workflow is deliberately a bounded foreground script seam. KodaX parity additionally requires named catalogs, trusted-local approval, durable task handles, live messaging, process pause/resume, nesting, artifacts, cost records, snapshot rerun and cache resume. Those responsibilities belong in an additive service above `ctx.subagents`, leaving the native engine small and unchanged.
+DSH's native PTC workflow is a bounded foreground script seam. KodaX parity additionally requires named catalogs, trusted-local approval, durable task handles, live messaging, process pause/resume, nesting, artifacts, cost records, snapshot rerun and cache resume. Those responsibilities belong in an additive service above `ctx.subagents`.

@@ -4,6 +4,19 @@
 
 ---
 
+## [0.1.5] - 2026-10-14
+
+### Changed
+
+- Target DeepSeek Harness `0.2.1-alpha.2` at `master@d74326738864`, with matching published DSH, Cordis, and Schemastery dependencies. Older DSH release trains are no longer supported.
+- Use managed, caller-delivered subagent activations; preserve cancellation after publication and retain local session evidence after cleanup. Live messages and same-child verification repairs use DSH's continuation manager.
+- Read immutable Session event snapshots, consume tool-result messages directly, declare the plugin's own message-source kind, and register background jobs under the owning Session id with the current `JobOutcome.result` field.
+- Apply per-task reasoning effort through native DSH Agent options without requiring a dispatch adapter; reject providers that cannot apply those options before child startup.
+- Emit the current native workflow event fields; the current client keeps background runs alive after normal step/turn closure without a `turn: null` override.
+- Test against published packages, check UI projection against current checkout source, and verify the built plugin through the current Cordis Loader including unload. Add real managed-activation completion and cancellation regressions.
+
+---
+
 ## [0.1.4] - 2026-09-05
 
 ### Changed

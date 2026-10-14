@@ -3,6 +3,7 @@ import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { ObjectJsonSchema } from '@deepseek-ai/dsh-tools'
 import type { SubagentRuntime } from '@deepseek-ai/dsh-subagent'
 import { randomUUID } from 'node:crypto'
+import { startWorkflowAgent } from './dsh.js'
 import { createWorkflowCapsule, validateWorkflowArgs, validateWorkflowCapsule } from './capsule.js'
 import { WorkflowControlError, resolveReadOnlyToolFilter, validateWorkflowTaskAdmission } from './engine.js'
 import { assertRestrictedWorkflowQuality, lintRestrictedWorkflowSource, validateRestrictedWorkflowSource } from './source-policy.js'
@@ -39,7 +40,7 @@ async function oneShot(
   if (provider === undefined) throw new Error(`workflow authoring provider "${route.subagentProvider}" is unavailable`)
   if (!provider.capabilities.toolFilter) throw new Error(`workflow authoring provider "${route.subagentProvider}" cannot enforce read-only scouting`)
   if (outputSchema !== undefined && !provider.capabilities.outputSchema) throw new Error(`workflow authoring provider "${route.subagentProvider}" cannot produce structured output`)
-  const run = await subagents.start(route.subagentProvider, {
+  const run = await startWorkflowAgent(subagents, route.subagentProvider, {
     label: outputSchema === undefined ? 'workflow-scout' : 'workflow-author',
     prompt: [{ type: 'text', text: prompt }],
     parent,

@@ -31,6 +31,7 @@ export * from './builtins.js'
 export * from './author.js'
 export * from './scoped-review.js'
 export * from './engine.js'
+export * from './dsh.js'
 
 export const name = 'dsh-external-workflow'
 export const inject = ['subagents', 'tools']
@@ -148,8 +149,8 @@ function resolveConfig(config: Config): ResolvedPluginConfig {
     availableMcp: [...(config.availableMcp ?? [])],
     availableSkills: [...(config.availableSkills ?? [])],
     maxRetainedRuns: config.maxRetainedRuns ?? 500,
-    pluginVersion: '0.1.4',
-    dshVersion: '0.1.3-alpha.1',
+    pluginVersion: '0.1.5',
+    dshVersion: '0.2.1-alpha.2',
   }
 }
 
@@ -213,7 +214,7 @@ function handoffWorkflowRequest(agent: Agent, request: string, grants: WorkflowH
         `Minimal example: source \`async function run(wf,args){return await wf.phase("analyze",async()=>{const r=await wf.runAgent({name:"analyst",prompt:String(args?.request??"analyze the task"),readOnly:true,modelHint:"balanced"});return r?.finalText??"no result"})}\` with manifest \`{"name":"focused-analysis","description":"Analyze with one specialist.","phases":["analyze"],"readOnly":true,"maxAgents":1,"maxConcurrency":1,"patterns":["classify-and-act"]}\`. Adapt it to the user's task and pass the original request via args.`,
       ].join('\n'),
     }],
-    source: { kind: 'plugin', plugin: '@dsh-external/workflow', form: 'relay' },
+    source: { kind: 'dsh-external-workflow', plugin: '@dsh-external/workflow', form: 'relay' },
   }))
   const message = createUserMessage({
     content: [{ type: 'text', text: trimmed }],
@@ -227,7 +228,7 @@ function handoffWorkflowRequest(agent: Agent, request: string, grants: WorkflowH
 function hasCurrentWorkflowHandoff(agent: Agent, grants: WorkflowHandoffGrants): boolean {
   const expectedMessageId = grants.get(agent)
   if (expectedMessageId === undefined) return false
-  const events = agent.session.events ?? []
+  const events = agent.session.snapshotEvents() ?? []
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index]!
     if (event.type === 'turn/start' || event.type === 'turn/end') return false

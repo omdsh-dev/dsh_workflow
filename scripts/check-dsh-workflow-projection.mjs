@@ -1,18 +1,21 @@
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { register } from 'tsx/esm/api'
 
 const snapshot = resolve(process.env.DSH_SNAPSHOT_DIR ?? '../deepseek-harness')
-const runtimePath = resolve(snapshot, 'packages/client/ui-conversation/lib/types/client/conversation/assembler.js')
-const workflowPath = resolve(snapshot, 'packages/client/ui-workflow-run/lib/types/client/workflow-definition.js')
+const runtimePath = resolve(snapshot, 'packages/client/ui-conversation/src/client/conversation/assembler.ts')
+const workflowPath = resolve(snapshot, 'packages/client/ui-workflow-run/src/client/workflow-definition.ts')
 for (const path of [runtimePath, workflowPath]) {
-  if (!existsSync(path)) throw new Error(`DSH client build output is missing: ${path}`)
+  if (!existsSync(path)) throw new Error(`DSH client source is missing: ${path}`)
 }
 
+const loader = register({ namespace: 'dsh-workflow-projection', tsconfig: resolve(snapshot, 'tsconfig.json') })
 const [{ ConversationNodeAssembler }, { workflowRunDefinition }] = await Promise.all([
-  import(pathToFileURL(runtimePath).href),
-  import(pathToFileURL(workflowPath).href),
+  loader.import(pathToFileURL(runtimePath).href, import.meta.url),
+  loader.import(pathToFileURL(workflowPath).href, import.meta.url),
 ])
+await loader.unregister()
 
 class EventDefinitions {
   entries() { return [workflowRunDefinition] }
@@ -42,7 +45,7 @@ assembler.activateTarget('chat')
 assembler.replaceWindow([
   input(1, 'turn/start', { turn: 1 }),
   input(2, 'step/start', { turn: 1, step: 1 }),
-  input(3, 'tool-workflow/run-start', { runId: 'background', name: 'background', turn: null }),
+  input(3, 'tool-workflow/run-start', { runId: 'background', name: 'background' }),
   input(4, 'tool-workflow/agent-start', { runId: 'background', seq: 1, label: 'worker', childId: 'child-1' }),
   input(5, 'step/end', { turn: 1, step: 1 }),
   input(6, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
@@ -51,7 +54,7 @@ assembler.flush()
 
 const data = () => [...assembler.snapshot('chat').nodes.values()][0]?.data
 if (data()?.status !== 'running' || data()?.phases[0]?.members[0]?.status !== 'running') {
-  throw new Error(`DSH projected a session-scoped background workflow incorrectly: ${JSON.stringify(data())}`)
+  throw new Error(`DSH projected a background workflow incorrectly: ${JSON.stringify(data())}`)
 }
 assembler.append(input(7, 'tool-workflow/agent-end', { runId: 'background', seq: 1, outcome: 'completed' }))
 assembler.append(input(8, 'tool-workflow/run-end', { runId: 'background', stopReason: 'completed' }))
@@ -60,4 +63,4 @@ if (data()?.status !== 'completed' || data()?.phases[0]?.members[0]?.status !== 
   throw new Error(`DSH ignored the workflow terminal facts: ${JSON.stringify(data())}`)
 }
 
-console.log('DSH session-scoped workflow projection verified')
+console.log('DSH background workflow projection verified against current client source')

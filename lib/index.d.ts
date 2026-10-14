@@ -11,6 +11,7 @@ export * from './builtins.js';
 export * from './author.js';
 export * from './scoped-review.js';
 export * from './engine.js';
+export * from './dsh.js';
 export declare const name = "dsh-external-workflow";
 export declare const inject: string[];
 export interface Config {
