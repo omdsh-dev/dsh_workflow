@@ -31,7 +31,7 @@ flowchart TD
 - `store.ts`: run snapshots, append-only events, capsule snapshots, cache, artifacts, retention and identity.
 - `service.ts`: per-project engine/store ownership and user/model lifecycle operations.
 - `index.ts`: Cordis config, three tools, command and system-prompt integration.
-- `dsh.ts`: caller-delivered managed activations, cancellation after publication, retained local session evidence, and continuation-managed child messaging/repair.
+- `dsh.ts`: flat caller-delivered activations, creation-time tool masks/guards, exact live-Agent and descendant ownership, same-tree child messaging/repair, and effective working-directory lookup.
 
 ## Important invariants
 
@@ -46,6 +46,8 @@ flowchart TD
 9. The deployment semaphore is shared by all runs and project engines owned by one service.
 10. Cordis unload aborts and awaits every active run before the service fiber finishes disposal.
 11. Required structured output is accepted only after schema validation; at most one same-route, tool-free format repair may replace a missing or invalid capture.
+12. Task completion waits for workflow-owned descendants to reach quiescence. Releasing an old activation cannot cancel an independent later continuation under the same Session id.
+13. Read-only tools are enforced before the child's first request and again during workflow-owned cold resumes; scoped registrations cannot bypass the execution guard.
 
 ## Why a separate engine
 

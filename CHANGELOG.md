@@ -4,6 +4,20 @@
 
 ---
 
+## [0.1.6] - 2026-11-22
+
+### Changed
+
+- Target DSH `0.2.2-rc.5` at `master@2e39e70496aa`, Cordis `4.1.0`, Schemastery `3.19.0`, and Node `>=24.9`. Pin the development runtime in `.node-version` without changing the system default.
+- Flatten native activation arguments and replace removed internal messaging and descendant-drain APIs with supported same-tree messaging and exact live-Agent lifecycle observation.
+- Apply read-only restrictions before child input is admitted. Hide disallowed global tools and enforce a monotonic execution guard for scoped tools; remote providers without local composition fail before startup.
+- Clean up workflow-owned descendants before publishing task completion. Disposing an old activation leaves independent later continuations and unrelated tree members running.
+- Resolve catalogs, review evidence, child execution, and run storage from the effective DSH working directory after a directory or workspace move.
+- Verify installed dependency versions as well as declared pins. Restore strict dependency declaration checking for tests and add the manifest type dependency required by the current published LLM package.
+- Add thirteen keyless execution scenarios through the real DSH Loader, AgentLoop, native tool executor, subagent manager, persistence, commands, titles, and background jobs. See [validation](docs/VALIDATION.md).
+
+---
+
 ## [0.1.5] - 2026-10-14
 
 ### Changed

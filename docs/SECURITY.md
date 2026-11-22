@@ -22,7 +22,9 @@ Capability-generated code is isolated from Node authority by QuickJS/WASM and ca
 
 ## DSH authority
 
-Child execution remains governed by the selected DSH provider. Read-only tasks require provider `toolFilter` support. Structured output requires provider `outputSchema` support. Missing capabilities reject before child launch. Normal DSH tool approvals and sandbox policies continue to apply inside children.
+Child execution remains governed by the selected DSH provider. Read-only tasks require a local continuable provider. The plugin reserves the child id and installs a global tool mask plus a monotonic execution guard at `agent/created`, before input is consumed. Scoped tools outside the task allow-list cannot execute; native structured capture is allowed only when the request has an output schema. Restrictions are reapplied on workflow-owned cold resumes. Unsupported remote transports and missing capabilities reject before child launch. Normal DSH approvals and sandbox policies remain active inside children.
+
+The plugin observes exact live Agent objects for task activations and descendants. Cancellation and normal task settlement drain workflow-owned live work before reporting completion. Observers are not allowed to adopt an independent later continuation just because it reuses the same Session id.
 
 ## Filesystem safety
 

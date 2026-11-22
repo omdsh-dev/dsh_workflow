@@ -1,11 +1,12 @@
-import { activationRuntime } from './dsh-fixture.js'
+import type { WorkflowAgentStartRequest as SubagentStartRequest } from '../src/dsh.js'
+import { activationRuntime, fixtureContext } from './dsh-fixture.js'
 import { startWorkflowAgent } from '../src/dsh.js'
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { SubagentRuntime, SubagentStartRequest } from '@deepseek-ai/dsh-subagent'
+import type { SubagentRuntime } from '@deepseek-ai/dsh-subagent'
 import { describe, expect, it, vi } from 'vitest'
 import { DynamicWorkflowService, projectPartitionKey } from '../src/service.js'
 import { validateWorkflowManifest } from '../src/capsule.js'
@@ -19,7 +20,7 @@ function config(root: string): ResolvedWorkflowConfig {
     defaultProvider: 'spawn', synthesisProvider: 'spawn',
     modelTiers: { fast: { subagentProvider: 'spawn', maxTokens: 10 }, balanced: { subagentProvider: 'spawn', maxTokens: 20 }, deep: { subagentProvider: 'spawn', maxTokens: 30 } },
     readOnlyToolFilter: { deny: ['write'] }, approvalMode: 'never', availableTools: [], availableMcp: [], availableSkills: [],
-    maxRetainedRuns: 20, pluginVersion: '0.1.0', dshVersion: '0.2.1-alpha.2',
+    maxRetainedRuns: 20, pluginVersion: '0.1.0', dshVersion: '0.2.2-rc.5',
   }
 }
 
@@ -50,7 +51,7 @@ function subagents() {
   })
   return {
     start,
-    value: { getProvider: (name: string) => name === 'spawn' ? { name, capabilities: { outputSchema: true, depthLimit: true, toolFilter: true, persona: true }, inheritsParentContext: false } : undefined, ...activationRuntime(start) } as unknown as SubagentRuntime,
+    value: { getProvider: (name: string) => name === 'spawn' ? { name, capabilities: { outputSchema: true, depthLimit: true, toolFilter: true, persona: true }, inheritsParentContext: false, prepareContinuable: async () => ({}) } : undefined, ...activationRuntime(start) } as unknown as SubagentRuntime,
   }
 }
 

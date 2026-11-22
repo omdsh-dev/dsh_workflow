@@ -1,6 +1,7 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjections from '@deepseek-ai/dsh-session-projection'
 import SubagentRuntime, { type SubagentResult } from '@deepseek-ai/dsh-subagent'
 import { describe, expect, it, vi } from 'vitest'
 import { startWorkflowAgent } from '../src/dsh.js'
@@ -17,6 +18,7 @@ async function fixture() {
     async ensure() { return process.cwd() }
   }
   const sessions = await ctx.plugin(SessionStore)
+  const projections = await ctx.plugin(SessionProjections)
   const agents = await ctx.plugin(Agents)
   const directory = await ctx.plugin(WorkingDirectory)
   const runtime = await ctx.plugin(SubagentRuntime, { maxDepth: 1, maxActiveSubagents: 8 })
@@ -30,11 +32,11 @@ async function fixture() {
   const start = vi.fn(async () => ({ id: SessionId('workflow-child'), result, dispose }))
   ctx.subagents.registerProvider({
     name: 'external', inheritsParentContext: false,
-    capabilities: { agentOptions: true, outputSchema: true, depthLimit: true, toolFilter: true, persona: true }, start,
+    capabilities: { agentOptions: true, agentPreset: false, outputSchema: true, depthLimit: true }, start,
   })
   return {
     ctx, parent, start, dispose, finish,
-    async close() { await runtime.dispose(); await directory.dispose(); await agents.dispose(); await sessions.dispose() },
+    async close() { await runtime.dispose(); await directory.dispose(); await agents.dispose(); await projections.dispose(); await sessions.dispose() },
   }
 }
 

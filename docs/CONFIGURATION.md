@@ -89,6 +89,8 @@ Adapters are single registrations because isolation and verification are policy 
 
 Dispatch adapters may return a `WorkflowAgentRun` or `{ run, telemetry }`. Use exported `startWorkflowAgent(subagents, provider, request)` when delegating to DSH so managed activation cancellation and local evidence are retained. The latter form is the authority for final provider/model/effort, fallback and remote usage facts; the plugin never fabricates unknown remote token counts. Native per-task reasoning effort does not require an adapter when the provider supports Agent options.
 
+`WorkflowAgentStartRequest.toolFilter` is owned by this plugin, not forwarded to the native activation request. In DSH `0.2.2-rc.5`, the helper applies global restrictions and scoped execution guards at `agent/created`, before the first prompt is consumed, and reapplies them during workflow-owned continuation repair. Read-only and tool-free authoring/repair require a local continuable provider. External providers fail loudly because this plugin cannot enforce their tool policy.
+
 ## Budget semantics
 
 For a token-budgeted workflow, every possible model tier needs `maxTokens`. Before a child starts, its allocation is reserved atomically against the run budget. Local DSH children reconcile the reservation from Session usage; remote providers without local usage are conservatively charged the allocation.

@@ -4,6 +4,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import AgentRegistry from '@deepseek-ai/dsh-agent'
+import { activationRuntime } from './dsh-fixture.js'
 import CommandRuntime from '@deepseek-ai/dsh-commands'
 import { Context, Service } from '@deepseek-ai/cordis'
 import SessionProjections from '@deepseek-ai/dsh-session-projection'
@@ -91,13 +93,14 @@ describe('Cordis plugin entrypoint', () => {
     const childDisposed = vi.fn(async () => {})
     class StubSubagents extends Service {
       constructor(ctx: Context) { super(ctx, 'subagents') }
-      getProvider(name: string) { return { name, capabilities: { outputSchema: true, depthLimit: true, toolFilter: true, persona: true }, inheritsParentContext: false } }
-      async startActivation(request: SubagentActivationSpec) {
+      getProvider(name: string) { return { name, capabilities: { agentOptions: true, agentPreset: false, outputSchema: true, depthLimit: true }, inheritsParentContext: false, prepareContinuable: async () => ({}) } }
+      private transport = activationRuntime(async (_provider, request) => {
         const result = new Promise<{ output: []; stopReason: 'aborted' }>(resolve => {
           request.signal.addEventListener('abort', () => resolve({ output: [], stopReason: 'aborted' }), { once: true })
         })
-        return { childId: 'active-child', result, dispose: childDisposed }
-      }
+        return { id: 'active-child', result, dispose: childDisposed }
+      })
+      startActivation(request: SubagentActivationSpec) { return this.transport.startActivation(request) }
     }
     class StubTools extends Service {
       constructor(ctx: Context) { super(ctx, 'tools') }
@@ -143,7 +146,7 @@ describe('Cordis plugin entrypoint', () => {
     }, true)
     expect(fx.tools.map(tool => tool.name)).toEqual(['flows', 'execute_flow', 'manage_flow'])
     const options = fx.ctx.plugin.mock.calls[0]?.[1] as Record<string, unknown>
-    expect(options).toMatchObject({ config: { projectDirectory: 'project', pluginVersion: '0.1.5', modelTiers: { fast: { subagentProvider: 'fast-p', provider: 'fast-llm', model: 'fast-m', maxTokens: 16 } }, readOnlyToolFilter: { deny: ['danger'] } }, approval: { service: 'approval' }, jobs: { service: 'jobs' }, userQuestions: { service: 'userQuestions' } })
+    expect(options).toMatchObject({ config: { projectDirectory: 'project', pluginVersion: '0.1.6', modelTiers: { fast: { subagentProvider: 'fast-p', provider: 'fast-llm', model: 'fast-m', maxTokens: 16 } }, readOnlyToolFilter: { deny: ['danger'] } }, approval: { service: 'approval' }, jobs: { service: 'jobs' }, userQuestions: { service: 'userQuestions' } })
     expect(fx.tools[0]!.output.render({}, { ok: true })).toEqual([{ type: 'text', text: '{\n  "ok": true\n}' }])
     await expect(fx.tools[0]!.execute({}, { signal: exec.signal })).rejects.toThrow(/requires a calling DSH agent/u)
     ;(fx.service.attachBackgroundJob as ReturnType<typeof vi.fn>).mockReturnValueOnce(undefined)
@@ -823,14 +826,15 @@ describe('Cordis plugin entrypoint', () => {
     const registeredTools: Array<{ name: string; execute(args: Record<string, unknown>, exec: unknown): Promise<unknown> }> = []
     class StubSubagents extends Service {
       constructor(ctx: Context) { super(ctx, 'subagents') }
-      getProvider(name: string) { return { name, capabilities: { outputSchema: true, depthLimit: true, toolFilter: true, persona: true }, inheritsParentContext: false } }
-      async startActivation() {
+      getProvider(name: string) { return { name, capabilities: { agentOptions: true, agentPreset: false, outputSchema: true, depthLimit: true }, inheritsParentContext: false, prepareContinuable: async () => ({}) } }
+      private transport = activationRuntime(async () => {
         return {
-          childId: 'lifecycle-child',
+          id: 'lifecycle-child',
           result: Promise.resolve({ output: [{ type: 'text' as const, text: 'done' }], stopReason: 'completed' as const }),
           dispose: vi.fn(async () => {}),
         }
-      }
+      })
+      startActivation(request: SubagentActivationSpec) { return this.transport.startActivation(request) }
     }
     class StubTools extends Service {
       constructor(ctx: Context) { super(ctx, 'tools') }
@@ -841,6 +845,7 @@ describe('Cordis plugin entrypoint', () => {
     const ctx = new Context()
     const sessions = await ctx.plugin(SessionStore)
     const projections = await ctx.plugin(SessionProjections)
+    const agents = await ctx.plugin(AgentRegistry)
     const sessionTitles = await ctx.plugin(SessionTitleService, { fallbackMaxWords: 12, fallbackMaxBytes: 120, maxTitleBytes: 120 })
     const commands = await ctx.plugin(CommandRuntime)
     const subagents = await ctx.plugin(StubSubagents)
@@ -891,7 +896,7 @@ describe('Cordis plugin entrypoint', () => {
       }, { agent: liveAgent, signal: exec.signal }) as { status: string; result: unknown }
       expect(result).toMatchObject({ status: 'completed', result: { summary: 'done' } })
     } finally {
-      await workflow.dispose(); await tools.dispose(); await subagents.dispose(); await commands.dispose(); await sessionTitles.dispose(); await projections.dispose(); await sessions.dispose()
+      await workflow.dispose(); await tools.dispose(); await subagents.dispose(); await commands.dispose(); await sessionTitles.dispose(); await agents.dispose(); await projections.dispose(); await sessions.dispose()
       await rm(cwd, { recursive: true, force: true })
     }
   })
@@ -908,7 +913,7 @@ describe('Cordis plugin entrypoint', () => {
       await writeFile(path.join(cwd, 'subject.ts'), 'export const value = 2\n', 'utf8')
 
       const fx = fixture()
-      const reviewAgent = { session: { id: 'review/session', header: { cwd } } } as unknown as Agent
+      const reviewAgent = { ctx: new Context(), session: { id: 'review/session', header: { cwd } } } as unknown as Agent
       const result = await fx.command().handler({ agent: reviewAgent, rawInput: 'review --lean --risk high --requirement "preserve exported behavior" --test-evidence "pnpm test passed" --wait -- focus auth', signal: exec.signal }) as { kind: string; text: string }
       expect(result.kind).toBe('success')
       expect(JSON.parse(result.text)).toMatchObject({ status: 'completed' })

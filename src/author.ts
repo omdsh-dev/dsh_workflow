@@ -38,7 +38,7 @@ async function oneShot(
 ): Promise<{ readonly text: string; readonly structured?: unknown }> {
   const provider = subagents.getProvider(route.subagentProvider)
   if (provider === undefined) throw new Error(`workflow authoring provider "${route.subagentProvider}" is unavailable`)
-  if (!provider.capabilities.toolFilter) throw new Error(`workflow authoring provider "${route.subagentProvider}" cannot enforce read-only scouting`)
+  if (provider.prepareContinuable === undefined) throw new Error(`workflow authoring provider "${route.subagentProvider}" cannot enforce read-only scouting`)
   if (outputSchema !== undefined && !provider.capabilities.outputSchema) throw new Error(`workflow authoring provider "${route.subagentProvider}" cannot produce structured output`)
   const run = await startWorkflowAgent(subagents, route.subagentProvider, {
     label: outputSchema === undefined ? 'workflow-scout' : 'workflow-author',

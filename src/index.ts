@@ -14,6 +14,7 @@ import type {} from '@deepseek-ai/dsh-jobs'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-user-approval'
 import type {} from '@deepseek-ai/dsh-user-questions'
+import { workflowCwd } from './dsh.js'
 import { createWorkflowCapsule, validateWorkflowArgs, validateWorkflowManifest } from './capsule.js'
 import { smokeWorkflowCapsule } from './author.js'
 import { scopedReviewWorkflow, writeReviewPackets } from './scoped-review.js'
@@ -149,8 +150,8 @@ function resolveConfig(config: Config): ResolvedPluginConfig {
     availableMcp: [...(config.availableMcp ?? [])],
     availableSkills: [...(config.availableSkills ?? [])],
     maxRetainedRuns: config.maxRetainedRuns ?? 500,
-    pluginVersion: '0.1.5',
-    dshVersion: '0.2.1-alpha.2',
+    pluginVersion: '0.1.6',
+    dshVersion: '0.2.2-rc.5',
   }
 }
 
@@ -464,7 +465,7 @@ async function command(service: DynamicWorkflowService, agent: Agent, raw: strin
     if (head === 'help') return { kind: 'success', text: HELP }
     if (head === 'review') {
       const invocation = parseWorkflowReview(tail)
-      const cwd = agent.session.header.cwd ?? process.cwd()
+      const cwd = workflowCwd(agent)
       const captured = await captureReviewDiff(invocation.diffArgs, cwd)
       if (captured.diff.trim().length === 0) return { kind: 'success', text: 'No changes to review.' }
       const packets = await writeReviewPackets({

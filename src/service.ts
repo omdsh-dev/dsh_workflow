@@ -13,6 +13,7 @@ import {
   deleteSavedWorkflow, discoverWorkflowCatalog, loadWorkflowByName, renameSavedWorkflow, saveWorkflowCapsule,
   type LoadedWorkflow, type WorkflowCatalog, type WorkflowCatalogOptions,
 } from './catalog.js'
+import { workflowCwd as cwdOf } from './dsh.js'
 import { DynamicWorkflowEngine, WorkflowSemaphore, snapshotCapsule } from './engine.js'
 import { WorkflowRunStore, type WorkflowPruneOptions, type WorkflowPruneResult } from './store.js'
 import type {
@@ -50,12 +51,6 @@ function canonicalProjectDirectory(cwd: string): string {
 
 export function projectPartitionKey(cwd: string): string {
   return createHash('sha256').update(canonicalProjectDirectory(cwd)).digest('hex')
-}
-
-function cwdOf(agent: Agent): string {
-  const cwd = agent.session.header.cwd
-  if (cwd === undefined) throw new Error('workflow requires a parent session with an absolute cwd')
-  return cwd
 }
 
 function terminalOutput(snapshot: WorkflowRunSnapshot): string {

@@ -1,7 +1,7 @@
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import type { SubagentRuntime, SubagentStartRequest } from '@deepseek-ai/dsh-subagent';
+import type { SubagentRuntime } from '@deepseek-ai/dsh-subagent';
 import type { ObjectJsonSchema, ToolRestriction } from '@deepseek-ai/dsh-tools';
-import type { WorkflowAgentRun } from './dsh.js';
+import type { WorkflowAgentRun, WorkflowAgentStartRequest } from './dsh.js';
 declare module '@deepseek-ai/dsh-llm/message' {
     interface MessageSourceMap {
         'dsh-external-workflow': {
@@ -418,7 +418,7 @@ export interface WorkflowDispatchAdapter {
         readonly target?: WorkflowSpawnAgentInput['target'];
         readonly effort?: string;
         readonly provider: string;
-        readonly request: SubagentStartRequest;
+        readonly request: WorkflowAgentStartRequest;
         readonly subagents: SubagentRuntime;
     }): Promise<WorkflowAgentRun | WorkflowDispatchResult>;
 }

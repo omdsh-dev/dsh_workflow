@@ -21,7 +21,7 @@ The native DSH `workflow` tool remains the best fit for a single foreground fan-
 
 ## Install
 
-Requires Node.js `>=22.19` and DSH `0.2.1-alpha.2` at the revision pinned in [`compatibility.json`](compatibility.json). Plugin `0.1.5` targets this release train.
+Requires Node.js `>=24.9` and DSH `0.2.2-rc.5` at the revision pinned in [`compatibility.json`](compatibility.json). Plugin `0.1.6` targets this release train; older DSH and Node 22 are unsupported.
 
 ```sh
 dsh plugin --profile web add "github:dsh-external/dsh_workflow#main"
@@ -32,7 +32,7 @@ For a local checkout, build an installable bundle and pass its path to DSH:
 
 ```sh
 pnpm pack
-dsh plugin --profile web add ./dsh-external-workflow-0.1.5.tgz
+dsh plugin --profile web add ./dsh-external-workflow-0.1.6.tgz
 ```
 
 Restart the profile, then try:
@@ -69,24 +69,25 @@ See the [complete parity contract](docs/KODAX_PARITY.md) for the evidence-backed
 
 Generated scripts run in a separate QuickJS WebAssembly heap. The host exposes only a JSON capability bridge; imports, process/filesystem/shell/network access, timers, nondeterministic clock/randomness, and non-JSON boundary values are rejected. CPU slices, wall time, memory, and stack are bounded, and wall timeout closes the bridge and aborts the run.
 
-Read-only execution dynamically intersects the parent Agent's visible catalog with a trusted allow-list, so unknown or newly added mutation tools are excluded by default. Read evidence, successful mutation-tool plus Git-workspace change evidence, required changed paths, final-text checks, and bounded same-actor repair are built in. Deployments can add non-Git workspace evidence, worktrees, and target/effort dispatch through public adapter registrations; unsupported requests fail loudly.
+Read-only execution dynamically intersects the parent Agent's visible catalog with a trusted allow-list. A creation-time global tool mask and a monotonic execution guard prevent unknown mutation tools, including scoped registrations, from running. Native structured capture remains available when a task requests an output schema. This requires a local continuable provider; unsupported remote transports fail before startup. Read evidence, Git-workspace mutation evidence, final-text checks, and bounded same-actor repair are built in. Deployments can add workspace evidence, worktrees, and target/effort dispatch through public adapters.
 
 ## Development
 
 Keep the compatible official DeepSeek Harness checkout at `../deepseek-harness` or set `DSH_SNAPSHOT_DIR` to its absolute path. Install that checkout's dependencies with `pnpm install --frozen-lockfile`. Tests use the matching published packages; compatibility checks load the checkout's current client and Loader source so stale build outputs cannot mask interface changes.
 
 ```sh
+fnm use              # selects the installed runtime recorded in .node-version
 pnpm install
 pnpm check
 pnpm test:coverage
 pnpm pack
 ```
 
-The suite currently contains 183 tests and enforces 80% global statement, branch, function, and line coverage thresholds. `pnpm check` also verifies the built plugin's load/unload through the current DSH Loader. Production builds check dependency declarations; the test compiler skips dependency declaration checks because the published `0.2.1-alpha.2` projection registry omits a private host-state augmentation required by its generic types.
+The suite contains 183 tests and enforces 80% global statement, branch, function, and line coverage thresholds. `pnpm check` also verifies built-plugin load/unload, current client projection, and thirteen real DSH execution scenarios without network model calls. Production and test compilers both check dependency declarations. Commands, native tool dispatch, read-only enforcement, structured capture/repair, cancellation and descendant cleanup, pause/resume, saved rerun/cache resume, same-child repair, background results, and working-directory changes are covered; see [validation details](docs/VALIDATION.md).
 
 ## Known limitations
 
-- Trusted-local `.ts` uses Node 22's native erasable-syntax TypeScript support and Node's module cache (restart DSH after edits); publish transform-only syntax or hot-reloaded modules as `.mjs/.js`.
+- Trusted-local `.ts` uses Node's native erasable-syntax TypeScript support and module cache (restart DSH after edits); publish transform-only syntax or hot-reloaded modules as `.mjs/.js`.
 - Existing-agent targets and worktree isolation require deployment dispatch/isolation adapters. Per-task `effort` uses native DSH reasoning effort on providers supporting Agent options; a registered dispatch adapter may override effort routing.
 - Built-in verification covers observed tool/read evidence, Git workspace mutation, per-required-path before/after fingerprints, and result postconditions; non-Git or external-authority policies register a verification adapter.
 - Only generated capsule runs carry immutable source snapshots that can be saved/rerun from history.

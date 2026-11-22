@@ -7,10 +7,10 @@ import { promisify } from 'node:util'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEventMap } from '@deepseek-ai/dsh-session'
-import type { SubagentRun, SubagentRuntime, SubagentStartRequest } from '@deepseek-ai/dsh-subagent'
+import type { SubagentRun, SubagentRuntime } from '@deepseek-ai/dsh-subagent'
 import { WorkflowRunId } from '@deepseek-ai/dsh-workflow'
 import type {} from '@deepseek-ai/dsh-tool-workflow/types'
-import { startWorkflowAgent, repairWorkflowAgent, sendWorkflowMessage, type WorkflowAgentRun } from './dsh.js'
+import { startWorkflowAgent, repairWorkflowAgent, sendWorkflowMessage, workflowCwd as cwdOf, type WorkflowAgentRun, type WorkflowAgentStartRequest } from './dsh.js'
 import { assertObjectJsonSchema, validateJsonSchemaValue, type ObjectJsonSchema, type ToolRestriction } from '@deepseek-ai/dsh-tools'
 import type { ApprovalService } from '@deepseek-ai/dsh-user-approval'
 import { createWorkflowCapsule, validateWorkflowArgs } from './capsule.js'
@@ -100,12 +100,6 @@ export class WorkflowControlError extends Error {
 
 function isControlError(error: unknown): error is WorkflowControlError {
   return error instanceof WorkflowControlError
-}
-
-function cwdOf(agent: Agent): string {
-  const cwd = agent.session.header.cwd
-  if (cwd === undefined) throw new Error('workflow requires a parent session with an absolute cwd')
-  return cwd
 }
 
 function textOf(run: Awaited<SubagentRun['result']>): string {
@@ -472,7 +466,7 @@ export function validateWorkflowTaskAdmission(input: WorkflowSpawnAgentInput, co
   const descriptor = context.subagents?.getProvider(subagentProvider)
   if (context.subagents !== undefined && descriptor === undefined) throw new WorkflowControlError(`subagent provider "${subagentProvider}" is unavailable`)
   if (input.effort !== undefined && context.dispatchAvailable === false && descriptor !== undefined && !descriptor.capabilities.agentOptions) throw new WorkflowControlError(`subagent provider "${subagentProvider}" cannot apply reasoning effort through agent options`)
-  if (readOnly && descriptor !== undefined && !descriptor.capabilities.toolFilter) throw new WorkflowControlError(`subagent provider "${subagentProvider}" cannot enforce read-only tool filtering`)
+  if (readOnly && descriptor !== undefined && descriptor.prepareContinuable === undefined) throw new WorkflowControlError(`subagent provider "${subagentProvider}" cannot enforce read-only tool filtering`)
   if (input.outputSchema !== undefined && descriptor !== undefined && !descriptor.capabilities.outputSchema) throw new WorkflowControlError(`subagent provider "${subagentProvider}" cannot produce structured output`)
   return { readOnly, route, allocation, subagentProvider }
 }
@@ -1100,7 +1094,8 @@ export class DynamicWorkflowEngine {
       const prompt = this.taskPrompt(task.input, isolation?.cwd)
       const modelProvider = task.input.provider ?? route.provider
       const model = task.input.model ?? route.model
-      const request: SubagentStartRequest = {
+      const request: WorkflowAgentStartRequest = {
+        cwd: cwdOf(parent),
         label: task.input.name,
         prompt: [{ type: 'text', text: prompt }],
         parent,
@@ -1148,14 +1143,14 @@ export class DynamicWorkflowEngine {
       let stopReason: string = outcome.stopReason
       let structured = outcome.structured
       if (status !== 'stopped' && task.input.outputSchema !== undefined) {
-        const rc2MissingCapture = outcome.stopReason === 'error'
+        const missingStructuredCapture = outcome.stopReason === 'error'
           && outcome.structured === undefined
           && childRecordedCompleted(childRun.localAgent)
         const first = structuredEvaluation(structured, finalText, task.input.outputSchema)
         structured = first.errors.length === 0 ? first.value : undefined
         let repairErrors = first.errors
         let repairSucceeded = false
-        if (((initialStatus === 'completed' && first.errors.length > 0) || rc2MissingCapture) && finalText.trim().length > 0 && !run.controller.signal.aborted) {
+        if (((initialStatus === 'completed' && first.errors.length > 0) || missingStructuredCapture) && finalText.trim().length > 0 && !run.controller.signal.aborted) {
           const repairController = new AbortController()
           const forwardAbort = (): void => repairController.abort(run.controller.signal.reason)
           run.controller.signal.addEventListener('abort', forwardAbort, { once: true })
@@ -1163,7 +1158,7 @@ export class DynamicWorkflowEngine {
           timer.unref()
           let repairRun: WorkflowAgentRun | undefined
           try {
-            const repairRequest: SubagentStartRequest = {
+            const repairRequest: WorkflowAgentStartRequest = {
               label: `${task.input.name} structured repair`,
               prompt: [{ type: 'text', text: [
                 'Re-format the completed report as the JSON object required by the workflow.',
@@ -1205,11 +1200,11 @@ export class DynamicWorkflowEngine {
             await repairRun?.dispose()
           }
         }
-        if (structured === undefined && (initialStatus === 'completed' || rc2MissingCapture)) {
+        if (structured === undefined && (initialStatus === 'completed' || missingStructuredCapture)) {
           status = 'failed'
           stopReason = `structured output validation failed${repairErrors.length === 0 ? '' : `: ${repairErrors.join('; ')}`}`
-        } else if (rc2MissingCapture && repairSucceeded) {
-          // DSH rc.2 reports an otherwise-completed child as "error" when its
+        } else if (missingStructuredCapture && repairSucceeded) {
+          // DSH reports an otherwise-completed child as "error" when its
           // native structured capture is missing. A valid, bounded repair is
           // the authoritative terminal result for that specific host shape.
           status = 'completed'
